@@ -45,6 +45,30 @@ st.markdown(
             border-radius: 14px;
             padding: 14px 16px;
         }
+        .insights-header {
+            margin-top: 1.25rem;
+            margin-bottom: 0.75rem;
+            padding: 0.95rem 1.1rem;
+            border-left: 5px solid #D7263D;
+            border-radius: 0 12px 12px 0;
+            background: linear-gradient(
+                90deg,
+                rgba(90,24,154,0.14),
+                rgba(215,38,61,0.06)
+            );
+        }
+        .insights-kicker {
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            color: #F4D35E;
+            margin-bottom: 0.2rem;
+        }
+        .insights-title {
+            font-size: 1.45rem;
+            font-weight: 700;
+            margin: 0;
+        }
     </style>
     """,
     unsafe_allow_html=True
@@ -65,6 +89,17 @@ def load_data():
 
 
 df = load_data()
+
+month_names = {
+    1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
+    5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
+    9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"
+}
+
+month_order = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+]
 
 
 # -----------------------------
@@ -118,25 +153,119 @@ if selected_state != "All":
 if selected_product != "All":
     filtered_df = filtered_df[filtered_df["PRODUCT_NAME"] == selected_product]
 
+if filtered_df.empty:
+    st.warning("No sales records match the selected filters.")
+    st.stop()
+
+
+# -----------------------------
+# Executive insights
+# -----------------------------
+st.markdown(
+    """
+    <div class="insights-header">
+        <div class="insights-kicker">EXECUTIVE INSIGHTS</div>
+        <div class="insights-title">What stands out in the current view</div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+product_insight = (
+    filtered_df.dropna(subset=["PRODUCT_NAME"])
+    .groupby("PRODUCT_NAME")["SALES_DOLLARS"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+top_product = product_insight.index[0] if len(product_insight) > 0 else "N/A"
+top_product_sales = product_insight.iloc[0] if len(product_insight) > 0 else 0
+
+state_insight = (
+    filtered_df.dropna(subset=["STATE"])
+    .groupby("STATE")["SALES_DOLLARS"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+top_state = state_insight.index[0] if len(state_insight) > 0 else "N/A"
+top_state_sales = state_insight.iloc[0] if len(state_insight) > 0 else 0
+
+retailer_insight = (
+    filtered_df.dropna(subset=["RETAILER"])
+    .groupby("RETAILER")["UNITS_SOLD"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+top_retailer = retailer_insight.index[0] if len(retailer_insight) > 0 else "N/A"
+top_retailer_units = retailer_insight.iloc[0] if len(retailer_insight) > 0 else 0
+
+month_insight = (
+    filtered_df.dropna(subset=["MONTH"])
+    .groupby("MONTH")["SALES_DOLLARS"]
+    .sum()
+    .sort_values(ascending=False)
+)
+
+if len(month_insight) > 0:
+    peak_month_number = int(month_insight.index[0])
+    peak_month = month_names.get(peak_month_number, str(peak_month_number))
+    peak_month_sales = month_insight.iloc[0]
+else:
+    peak_month = "N/A"
+    peak_month_sales = 0
+
+insight1, insight2, insight3, insight4 = st.columns(4)
+
+insight1.metric(
+    "Top Product",
+    top_product,
+    help=f"${top_product_sales:,.0f} in sales for the current filters"
+)
+
+insight2.metric(
+    "Top State",
+    top_state,
+    help=f"${top_state_sales:,.0f} in sales for the current filters"
+)
+
+insight3.metric(
+    "Top Retailer by Units",
+    top_retailer,
+    help=f"{top_retailer_units:,.0f} units for the current filters"
+)
+
+insight4.metric(
+    "Peak Sales Month",
+    peak_month,
+    help=f"${peak_month_sales:,.0f} in sales for the current filters"
+)
+
+unresolved_state_count = int(filtered_df["STATE"].isna().sum())
+unresolved_retailer_count = int(filtered_df["RETAILER"].isna().sum())
+
+if unresolved_state_count > 0 or unresolved_retailer_count > 0:
+    st.caption(
+        f"Data note: location-based insights exclude {unresolved_state_count:,} "
+        f"transaction(s) with unresolved state; retailer rankings exclude "
+        f"{unresolved_retailer_count:,} transaction(s) with unresolved retailer."
+    )
+
+st.divider()
+
 
 # -----------------------------
 # KPI cards
 # -----------------------------
 total_sales = filtered_df["SALES_DOLLARS"].sum()
 total_units = filtered_df["UNITS_SOLD"].sum()
-
-retailer_units = (
-    filtered_df.dropna(subset=["RETAILER"])
-    .groupby("RETAILER")["UNITS_SOLD"]
-    .sum()
-)
-
-top_retailer = retailer_units.idxmax() if len(retailer_units) > 0 else "N/A"
+total_orders = filtered_df["ORDER_ID"].nunique()
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Total Sales", f"${total_sales:,.0f}")
 col2.metric("Units Sold", f"{total_units:,.0f}")
-col3.metric("Top Retailer", top_retailer)
+col3.metric("Orders", f"{total_orders:,.0f}")
 
 
 # -----------------------------
@@ -206,7 +335,7 @@ fig_map.update_layout(
     )
 )
 
-st.plotly_chart(fig_map, use_container_width=True)
+st.plotly_chart(fig_map, width="stretch")
 
 
 # -----------------------------
@@ -237,8 +366,11 @@ with left:
         }
     )
 
+    fig_products.update_traces(
+        hovertemplate="<b>%{y}</b><br>Sales: $%{x:,.0f}<extra></extra>"
+    )
     fig_products.update_layout(showlegend=False)
-    st.plotly_chart(fig_products, use_container_width=True)
+    st.plotly_chart(fig_products, width="stretch")
 
 
 # -----------------------------
@@ -246,17 +378,6 @@ with left:
 # -----------------------------
 with right:
     st.subheader("Monthly Sales Trend")
-
-    month_names = {
-        1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
-        5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
-        9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"
-    }
-
-    month_order = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    ]
 
     monthly_sales = (
         filtered_df
@@ -285,10 +406,10 @@ with right:
         line_color="#D7263D",
         marker_color="#F4D35E",
         marker_size=8,
-        hovertemplate="Month: %{x}<br>Sales: $%{y:,.0f}<extra></extra>"
+        hovertemplate="<b>%{x}</b><br>Sales: $%{y:,.0f}<extra></extra>"
     )
 
-    st.plotly_chart(fig_month, use_container_width=True)
+    st.plotly_chart(fig_month, width="stretch")
 
 
 # -----------------------------
@@ -308,7 +429,7 @@ retailer_sales = (
 
 st.dataframe(
     retailer_sales,
-    use_container_width=True,
+    width="stretch",
     hide_index=True,
     column_config={
         "Sales": st.column_config.NumberColumn("Sales", format="$%,.0f"),
