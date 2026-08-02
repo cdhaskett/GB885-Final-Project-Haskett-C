@@ -247,6 +247,17 @@ with left:
 with right:
     st.subheader("Monthly Sales Trend")
 
+    month_names = {
+        1: "Jan", 2: "Feb", 3: "Mar", 4: "Apr",
+        5: "May", 6: "Jun", 7: "Jul", 8: "Aug",
+        9: "Sep", 10: "Oct", 11: "Nov", 12: "Dec"
+    }
+
+    month_order = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ]
+
     monthly_sales = (
         filtered_df
         .groupby("MONTH", as_index=False)["SALES_DOLLARS"]
@@ -254,13 +265,18 @@ with right:
         .sort_values("MONTH")
     )
 
+    monthly_sales["MONTH_NAME"] = (
+        monthly_sales["MONTH"].astype(int).map(month_names)
+    )
+
     fig_month = px.line(
         monthly_sales,
-        x="MONTH",
+        x="MONTH_NAME",
         y="SALES_DOLLARS",
         markers=True,
+        category_orders={"MONTH_NAME": month_order},
         labels={
-            "MONTH": "Month",
+            "MONTH_NAME": "Month",
             "SALES_DOLLARS": "Sales Dollars"
         }
     )
