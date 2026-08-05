@@ -132,6 +132,8 @@ st.sidebar.header("Filters")
 years = sorted(df["YEAR"].dropna().astype(int).unique())
 selected_year = st.sidebar.selectbox("Year", ["All"] + years)
 
+selected_category = st.sidebar.selectbox("Category", ["All", "Men's", "Women's"])
+
 states = sorted(df["STATE"].dropna().unique())
 selected_state = st.sidebar.selectbox("State", ["All"] + states)
 
@@ -146,6 +148,11 @@ filtered_df = df.copy()
 
 if selected_year != "All":
     filtered_df = filtered_df[filtered_df["YEAR"] == selected_year]
+
+if selected_category != "All":
+    filtered_df = filtered_df[
+        filtered_df["PRODUCT_NAME"].str.startswith(selected_category)
+    ]
 
 if selected_state != "All":
     filtered_df = filtered_df[filtered_df["STATE"] == selected_state]
